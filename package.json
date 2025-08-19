@@ -1,0 +1,53 @@
+{
+  "name": "lsafe",
+  "version": "1.0.0",
+  "description": "Advanced Lando Backup & Command Wrapper - Never lose your database again!",
+  "main": "lsafe.sh",
+  "bin": {
+    "lsafe": "./lsafe.sh"
+  },
+  "scripts": {
+    "install": "chmod +x lsafe.sh && cp lsafe.sh ~/bin/lsafe",
+    "test": "bash tests/run-tests.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Apotheosis-Tech/lsafe.git"
+  },
+  "keywords": [
+    "lando",
+    "drupal",
+    "backup",
+    "database",
+    "development",
+    "docker",
+    "mysql",
+    "safety",
+    "automation"
+  ],
+  "author": {
+    "name": "Joe Stramel",
+    "company": "Apotheosis Technologies, LLC",
+    "url": "https://apotheosis-technologies.com"
+  },
+  "contributors": [
+    {
+      "name": "Claude",
+      "organization": "Anthropic",
+      "role": "Development Assistant"
+    }
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Apotheosis-Tech/lsafe/issues"
+  },
+  "homepage": "https://github.com/Apotheosis-Tech/lsafe#readme",
+  "engines": {
+    "node": ">=12.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "preferGlobal": true
+}

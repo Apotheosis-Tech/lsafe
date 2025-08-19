@@ -1,0 +1,77 @@
+name: Test LSafe
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        shell: [bash]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Make script executable
+      run: chmod +x lsafe.sh
+    
+    - name: Test help command (no Lando required)
+      run: |
+        # Create a temporary directory with .lando.yml to simulate project
+        mkdir -p test-project
+        cd test-project
+        echo "name: test" > .lando.yml
+        
+        # Test basic commands that don't require actual Lando
+        ../lsafe.sh help
+        
+        # Test project detection
+        if ../lsafe.sh status 2>&1 | grep -q "No backups found"; then
+          echo "✓ Project detection working"
+        else
+          echo "✗ Project detection failed"
+          exit 1
+        fi
+    
+    - name: Test script syntax
+      run: |
+        # Check for bash syntax errors
+        bash -n lsafe.sh
+        echo "✓ Bash syntax check passed"
+    
+    - name: Test installation script syntax
+      run: |
+        bash -n install.sh
+        echo "✓ Install script syntax check passed"
+    
+    - name: Verify required commands exist
+      run: |
+        # Check for required system commands
+        command -v date || exit 1
+        command -v ls || exit 1
+        command -v mkdir || exit 1
+        command -v du || exit 1
+        echo "✓ Required system commands available"
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Install ShellCheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+    
+    - name: Run ShellCheck on main script
+      run: shellcheck lsafe.sh
+    
+    - name: Run ShellCheck on install script
+      run: shellcheck install.sh
