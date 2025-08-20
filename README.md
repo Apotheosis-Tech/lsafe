@@ -1,6 +1,6 @@
 # LSafe - Advanced Lando Backup & Command Wrapper
 
-**Never lose your database again!** LSafe automatically backs up your database before destructive Lando operations, providing a safety net for Drupal development.
+**Automated database backup safety for Lando workflows!** LSafe provides a comprehensive backup system for Lando operations, ensuring you never lose important development work.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Lando](https://img.shields.io/badge/Lando-Compatible-blue.svg)](https://lando.dev)
@@ -8,11 +8,11 @@
 
 ## 🚀 Features
 
-- **Automatic Database Backups** before destructive operations
+- **Automatic Database Backups** before potentially destructive operations
 - **Smart Project Detection** - works from any subdirectory
 - **Backup Age Monitoring** with configurable warnings
 - **Automatic Cleanup** - keeps only the most recent backups
-- **Comprehensive Command Set** - rebuild, destroy, restart, update, import, restore
+- **Comprehensive Command Set** - destroy, restart, poweroff, update, import, restore
 - **Colorized Output** for better visibility
 - **Safety Confirmations** for destructive operations
 - **Cross-Platform Support** (macOS, Linux)
@@ -41,8 +41,8 @@ source ~/.bashrc
 # Create a manual backup
 lsafe backup
 
-# Safe rebuild with automatic backup
-lsafe rebuild
+# Safe destroy with automatic backup
+lsafe destroy
 
 # Check backup status
 lsafe status
@@ -70,26 +70,22 @@ lsafe help
 | `list` | List all backup files | ➖ |
 | `status` | Check backup age and status | ➖ |
 
-## 🛡️ Safety Features
+## 🛡️ What LSafe Protects Against
 
-### Automatic Backups
-LSafe automatically creates timestamped backups before:
-- `lando rebuild`
-- `lando destroy`
-- `lando restart`
-- `lando poweroff`
-- Database imports
-- Drupal updates (updb, cim, cr)
+### Truly Destructive Operations
+LSafe automatically backs up before:
+- **`lando destroy`** (completely removes containers and data)
+- **Database imports** (replaces current database)
+- **`lando poweroff`** (in case of unexpected data loss)
+- **Drupal updates** (database changes during updb, cim)
 
-### Smart Warnings
-- Warns if your last backup is older than 7 days
-- Shows backup file sizes and timestamps
-- Confirms destructive operations
+### Additional Safety
+- **Backup monitoring** - warns if backups are getting old
+- **Easy restoration** - quick recovery when things go wrong
+- **Accident prevention** - safety prompts for dangerous operations
+- **General backup hygiene** - automated cleanup and organization
 
-### Intelligent Cleanup
-- Automatically keeps only the 10 most recent backups
-- Manual cleanup with `lsafe clean`
-- Configurable retention policy
+> **Note:** `lando rebuild` typically preserves database data in Docker volumes, but LSafe provides backup coverage for comprehensive safety and edge cases.
 
 ## 💡 Examples
 
@@ -98,10 +94,10 @@ LSafe automatically creates timestamped backups before:
 # Start your day with a backup
 lsafe backup morning-start
 
-# Safe rebuild after pulling changes
-lsafe rebuild
+# Safely destroy environment when switching projects
+lsafe destroy
 
-# Apply updates safely
+# Apply updates with automatic backup
 lsafe update
 
 # Import fresh data with safety net
@@ -117,10 +113,10 @@ lsafe list
 lsafe list
 
 # Restore from a specific backup
-lsafe restore pre-rebuild_20240819_143022.sql
+lsafe restore pre-destroy_20240819_143022.sql
 
-# Or restore from the most recent
-lsafe status  # See recent backups
+# Or check recent backups first
+lsafe status
 lsafe restore <filename>
 ```
 
@@ -140,7 +136,7 @@ your-drupal-project/
 ├── .lando.yml
 ├── db_exports/           # LSafe backup directory
 │   ├── manual_20240819_140530.sql
-│   ├── pre-rebuild_20240819_143022.sql
+│   ├── pre-destroy_20240819_143022.sql
 │   └── pre-update_20240819_150145.sql
 └── web/
 ```
@@ -153,11 +149,14 @@ your-drupal-project/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to:
+**Note:** This is a community tool with limited maintenance time. Contributions are very welcome!
+
+Please feel free to:
 - Report bugs
 - Suggest features
 - Submit pull requests
 - Share your use cases
+- Help with maintenance and improvements
 
 ### Development Setup
 ```bash
@@ -201,6 +200,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-**⭐ If LSafe saved your database, please star this repo!**
+**⭐ If LSafe helps your Lando workflow, please star this repo!**
 
 *Making Lando development safer, one backup at a time.*

@@ -23,7 +23,8 @@ VERSION="1.0.0"
 
 # Function to find Lando project root
 find_lando_root() {
-    local current_dir="$(pwd)"
+    local current_dir
+    current_dir="$(pwd)"
     
     # Walk up the directory tree looking for .lando.yml
     while [ "$current_dir" != "/" ]; do
@@ -41,7 +42,7 @@ find_lando_root() {
 
 # Find project root and set backup directory
 PROJECT_ROOT=$(find_lando_root)
-if [ $? -ne 0 ]; then
+if ! PROJECT_ROOT=$(find_lando_root); then
     exit 1
 fi
 
@@ -52,18 +53,22 @@ mkdir -p "${BACKUP_DIR}"
 
 # Function to check if backup is needed
 check_backup_age() {
-    local latest_backup=$(ls -t "${BACKUP_DIR}"/*.sql 2>/dev/null | head -1)
+    local latest_backup
+    latest_backup=$(find "${BACKUP_DIR}" -name "*.sql" -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)
     
     if [ -z "${latest_backup}" ]; then
         echo -e "${YELLOW}⚠️  No backups found! Creating your first backup is recommended.${NC}"
         return 1
     fi
     
-    local backup_age_seconds=$(( $(date +%s) - $(stat -f %m "${latest_backup}" 2>/dev/null || stat -c %Y "${latest_backup}" 2>/dev/null || echo 0) ))
-    local backup_age_days=$(( backup_age_seconds / 86400 ))
+    local backup_age_seconds
+    backup_age_seconds=$(( $(date +%s) - $(stat -f %m "${latest_backup}" 2>/dev/null || stat -c %Y "${latest_backup}" 2>/dev/null || echo 0) ))
+    local backup_age_days
+    backup_age_days=$(( backup_age_seconds / 86400 ))
     
     if [ "${backup_age_days}" -ge "${WARN_DAYS}" ]; then
-        local backup_name=$(basename "${latest_backup}")
+        local backup_name
+        backup_name=$(basename "${latest_backup}")
         echo -e "${YELLOW}⚠️  Your last backup is ${backup_age_days} days old: ${backup_name}${NC}"
         echo -e "${YELLOW}   Consider creating a fresh backup with: lsafe backup${NC}"
         return 1
@@ -75,7 +80,8 @@ check_backup_age() {
 # Function to create backup
 create_backup() {
     local prefix="$1"
-    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
     local filename="${prefix}_${timestamp}.sql"
     local backup_path="${BACKUP_DIR}/${filename}"
     
@@ -89,22 +95,24 @@ create_backup() {
     echo -e "${BLUE}Debug: Backup directory exists: $(ls -la "${BACKUP_DIR}" 2>/dev/null && echo "YES" || echo "NO")${NC}"
     
     # Change to project root for lando commands
-    local current_dir=$(pwd)
+    local current_dir
+    current_dir=$(pwd)
     echo -e "${BLUE}Debug: Changing from $(pwd) to ${PROJECT_ROOT}${NC}"
-    cd "${PROJECT_ROOT}"
+    cd "${PROJECT_ROOT}" || { echo -e "${RED}Failed to change to project root${NC}"; return 1; }
     echo -e "${BLUE}Debug: Now in $(pwd)${NC}"
     
     # Use relative path for lando db-export (Lando containers have issues with absolute paths)
     local relative_backup_path="./db_exports/${filename}"
     echo -e "${BLUE}Debug: Running: lando db-export \"${relative_backup_path}\"${NC}"
     if lando db-export "${relative_backup_path}"; then
-        cd "${current_dir}"  # Return to where user was
-        local size=$(du -h "${backup_path}" | cut -f1)
+        cd "${current_dir}" || { echo -e "${RED}Failed to return to original directory${NC}"; return 1; }
+        local size
+        size=$(du -h "${backup_path}" | cut -f1)
         echo -e "${GREEN}✓ Backup created: ${filename} (${size})${NC}"
         cleanup_old_backups
         return 0
     else
-        cd "${current_dir}"  # Return to where user was
+        cd "${current_dir}" || { echo -e "${RED}Failed to return to original directory${NC}"; return 1; }
         echo -e "${RED}✗ Backup failed! Check the error above.${NC}"
         return 1
     fi
@@ -112,18 +120,19 @@ create_backup() {
 
 # Function to cleanup old backups
 cleanup_old_backups() {
-    local backup_count=$(ls -1 "${BACKUP_DIR}"/*.sql 2>/dev/null | wc -l)
+    local backup_count
+    backup_count=$(find "${BACKUP_DIR}" -name "*.sql" -type f 2>/dev/null | wc -l)
     
     if [ "${backup_count}" -gt "${MAX_BACKUPS}" ]; then
         echo -e "${BLUE}🧹 Cleaning up old backups (keeping last ${MAX_BACKUPS})...${NC}"
-        ls -t "${BACKUP_DIR}"/*.sql | tail -n +$((MAX_BACKUPS + 1)) | xargs rm -f
+        find "${BACKUP_DIR}" -name "*.sql" -type f -print0 2>/dev/null | xargs -0 ls -t | tail -n +$((MAX_BACKUPS + 1)) | xargs rm -f
     fi
 }
 
 # Function to show recent backups
 show_recent_backups() {
     echo -e "\n${BLUE}📁 Recent backups:${NC}"
-    ls -lah "${BACKUP_DIR}/" | tail -5
+    find "${BACKUP_DIR}" -name "*.sql" -type f -exec ls -lah {} \; 2>/dev/null | tail -5
 }
 
 # Check backup age on startup (except for help and backup commands)
@@ -131,6 +140,17 @@ if [[ "$1" != "help" && "$1" != "-h" && "$1" != "--help" && "$1" != "backup" && 
     check_backup_age
     echo ""
 fi
+
+# Function to safely change directory and run lando commands
+safe_lando_command() {
+    local current_dir
+    current_dir=$(pwd)
+    cd "${PROJECT_ROOT}" || { echo -e "${RED}Failed to change to project root${NC}"; return 1; }
+    "$@"
+    local exit_code=$?
+    cd "${current_dir}" || { echo -e "${RED}Failed to return to original directory${NC}"; return 1; }
+    return $exit_code
+}
 
 # Main command logic
 case "$1" in
@@ -146,11 +166,7 @@ case "$1" in
         # Auto-backup before rebuild
         if create_backup "pre-rebuild"; then
             echo -e "${YELLOW}🔨 Running lando rebuild...${NC}"
-            # Change to project root for lando commands
-            local current_dir=$(pwd)
-            cd "${PROJECT_ROOT}"
-            lando rebuild "${@:2}"
-            cd "${current_dir}"
+            safe_lando_command lando rebuild "${@:2}"
         fi
         ;;
         
@@ -162,11 +178,7 @@ case "$1" in
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             if create_backup "pre-destroy"; then
                 echo -e "${RED}💥 Running lando destroy...${NC}"
-                # Change to project root for lando commands
-                local current_dir=$(pwd)
-                cd "${PROJECT_ROOT}"
-                lando destroy "${@:2}"
-                cd "${current_dir}"
+                safe_lando_command lando destroy "${@:2}"
             fi
         else
             echo -e "${BLUE}Operation cancelled.${NC}"
@@ -177,11 +189,7 @@ case "$1" in
         # Auto-backup before restart (optional, can be disabled)
         if create_backup "pre-restart"; then
             echo -e "${YELLOW}🔄 Running lando restart...${NC}"
-            # Change to project root for lando commands
-            local current_dir=$(pwd)
-            cd "${PROJECT_ROOT}"
-            lando restart "${@:2}"
-            cd "${current_dir}"
+            safe_lando_command lando restart "${@:2}"
         fi
         ;;
         
@@ -189,11 +197,7 @@ case "$1" in
         # Auto-backup before poweroff
         if create_backup "pre-poweroff"; then
             echo -e "${YELLOW}⏹️  Running lando poweroff...${NC}"
-            # Change to project root for lando commands
-            local current_dir=$(pwd)
-            cd "${PROJECT_ROOT}"
-            lando poweroff "${@:2}"
-            cd "${current_dir}"
+            safe_lando_command lando poweroff "${@:2}"
         fi
         ;;
         
@@ -201,13 +205,9 @@ case "$1" in
         # Auto-backup before updates
         if create_backup "pre-update"; then
             echo -e "${YELLOW}📦 Running update commands...${NC}"
-            # Change to project root for lando commands
-            local current_dir=$(pwd)
-            cd "${PROJECT_ROOT}"
-            lando drush updb -y
-            lando drush cim -y
-            lando drush cr
-            cd "${current_dir}"
+            safe_lando_command lando drush updb -y
+            safe_lando_command lando drush cim -y
+            safe_lando_command lando drush cr
         fi
         ;;
         
@@ -230,11 +230,7 @@ case "$1" in
         
         if create_backup "pre-import"; then
             echo -e "${YELLOW}📥 Importing database: $import_file${NC}"
-            # Change to project root for lando commands
-            local current_dir=$(pwd)
-            cd "${PROJECT_ROOT}"
-            lando db-import "$import_file"
-            cd "${current_dir}"
+            safe_lando_command lando db-import "$import_file"
         fi
         ;;
         
@@ -248,14 +244,14 @@ case "$1" in
     "list"|"ls")
         # List all backups
         echo -e "${BLUE}📁 All backups:${NC}"
-        ls -lah "${BACKUP_DIR}/"
+        find "${BACKUP_DIR}" -name "*.sql" -type f -exec ls -lah {} \; 2>/dev/null
         ;;
         
     "restore")
         # Restore from backup
         if [ -z "$2" ]; then
             echo -e "${BLUE}Available backups:${NC}"
-            ls -1 "${BACKUP_DIR}/"*.sql 2>/dev/null | sed 's|^.*/||'
+            find "${BACKUP_DIR}" -name "*.sql" -type f -exec basename {} \; 2>/dev/null
             echo -e "\n${YELLOW}Usage: $0 restore <backup_filename>${NC}"
             exit 1
         fi
@@ -270,7 +266,7 @@ case "$1" in
         if [ ! -f "${backup_file}" ]; then
             echo -e "${RED}Backup file not found: $2${NC}"
             echo -e "${BLUE}Available backups:${NC}"
-            ls -1 "${BACKUP_DIR}/"*.sql 2>/dev/null | sed 's|^.*/||'
+            find "${BACKUP_DIR}" -name "*.sql" -type f -exec basename {} \; 2>/dev/null
             exit 1
         fi
         
@@ -280,11 +276,7 @@ case "$1" in
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             if create_backup "pre-restore"; then
                 echo -e "${YELLOW}📥 Restoring from: $(basename "$backup_file")${NC}"
-                # Change to project root for lando commands
-                local current_dir=$(pwd)
-                cd "${PROJECT_ROOT}"
-                lando db-import "${backup_file}"
-                cd "${current_dir}"
+                safe_lando_command lando db-import "${backup_file}"
             fi
         else
             echo -e "${BLUE}Restore cancelled.${NC}"
